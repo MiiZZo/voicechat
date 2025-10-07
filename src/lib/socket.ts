@@ -1,6 +1,6 @@
 import { Server as NetServer } from 'http'
 import { NextApiResponse } from 'next'
-import { Server as ServerIO } from 'socket.io'
+import { Server as ServerIO, Socket } from 'socket.io'
 
 export type NextApiResponseServerIO = NextApiResponse & {
   socket: {
@@ -8,6 +8,12 @@ export type NextApiResponseServerIO = NextApiResponse & {
       io: ServerIO
     }
   }
+}
+
+// Extended Socket interface with custom properties
+interface ExtendedSocket extends Socket {
+  roomId?: string
+  username?: string
 }
 
 // Store room participants
@@ -38,7 +44,7 @@ export const SocketHandler = (req: any, res: NextApiResponseServerIO) => {
 
   res.socket.server.io = io
 
-  io.on('connection', (socket) => {
+  io.on('connection', (socket: ExtendedSocket) => {
     console.log('👤 User connected:', socket.id)
 
     socket.on('join-room', ({ roomId, username }: { roomId: string; username: string }) => {

@@ -4,6 +4,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import SimplePeer from 'simple-peer'
 
+// Extended Socket interface for client side
+interface ExtendedSocket extends Socket {
+  roomId?: string
+  username?: string
+}
+
 interface Participant {
   id: string
   username: string
@@ -27,7 +33,7 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  const socketRef = useRef<Socket | null>(null)
+  const socketRef = useRef<ExtendedSocket | null>(null)
   const peersRef = useRef<Map<string, PeerConnection>>(new Map())
   const localStreamRef = useRef<MediaStream | null>(null)
   const isMutedRef = useRef(false)
@@ -69,7 +75,7 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
         timeout: 20000,
         reconnection: false, // Disable auto-reconnection to prevent loops
         reconnectionAttempts: 0
-      })
+      }) as ExtendedSocket
       
       socketRef.current = socket
 
