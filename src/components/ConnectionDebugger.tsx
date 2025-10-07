@@ -27,7 +27,7 @@ export default function ConnectionDebugger({ isVisible = false }: ConnectionDebu
         connected: debugSocket.connected,
         transport: debugSocket.io.engine?.transport?.name || 'unknown',
         readyState: debugSocket.io.engine?.readyState || 'unknown',
-        url: debugSocket.io.uri,
+        url: window.location.origin + '/api/socketio',
         id: debugSocket.id,
         timestamp: new Date().toISOString()
       })
