@@ -66,19 +66,26 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
         socketRef.current = null
       }
 
-      // Connect to socket server
-      const socket = io({
-        path: '/api/socketio',
-        transports: ['polling', 'websocket'],
-        autoConnect: true,
-        forceNew: true,
-        timeout: 20000,
-        reconnection: false, // Disable auto-reconnection to prevent loops
-        reconnectionAttempts: 0,
-        upgrade: true,
-        rememberUpgrade: true,
-        withCredentials: true
-      }) as ExtendedSocket
+             // Connect to socket server
+             const isProduction = process.env.NODE_ENV === 'production'
+             
+             const socket = io({
+               path: '/api/socketio',
+               transports: isProduction ? ['polling'] : ['polling', 'websocket'],
+               autoConnect: true,
+               forceNew: true,
+               timeout: isProduction ? 60000 : 45000,
+               reconnection: false, // Disable auto-reconnection to prevent loops
+               reconnectionAttempts: 0,
+               upgrade: !isProduction, // Отключаем upgrade для продакшена
+               rememberUpgrade: !isProduction,
+               withCredentials: true,
+               // Добавляем настройки для Vercel
+               closeOnBeforeunload: false,
+               // Увеличиваем интервалы для стабильности
+               pingTimeout: isProduction ? 120000 : 60000,
+               pingInterval: isProduction ? 50000 : 25000
+             }) as ExtendedSocket
       
       socketRef.current = socket
 

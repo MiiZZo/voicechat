@@ -28,29 +28,45 @@ export const SocketHandler = (req: any, res: NextApiResponseServerIO) => {
   }
 
   console.log('🚀 Socket is initializing...')
+  
+  // Конфигурация для продакшена (Vercel)
+  const isProduction = process.env.NODE_ENV === 'production'
+  
   const io = new ServerIO(res.socket.server, {
     path: '/api/socketio',
     addTrailingSlash: false,
     cors: {
-      origin: process.env.NODE_ENV === 'production' 
+      origin: isProduction 
         ? [
-            process.env.CLIENT_URL || 'https://voicechat-t2ph-dcwqm30gu-miizzos-projects.vercel.app/'
+            process.env.CLIENT_URL || 'https://voicechat-t2ph-dcwqm30gu-miizzos-projects.vercel.app',
+            'https://voicechat-t2ph-git-master-miizzos-projects.vercel.app',
+            'https://*.vercel.app'
           ]
         : [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
             "http://localhost:3001"
           ],
-      methods: ["GET", "POST"],
+      methods: ["GET", "POST", "OPTIONS"],
       credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization"]
+      allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
     },
     allowEIO3: true,
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    transports: ['polling', 'websocket'], // Polling first for better compatibility
-    upgrade: true,
-    rememberUpgrade: true
+    pingTimeout: isProduction ? 120000 : 60000, // Увеличиваем для Vercel
+    pingInterval: isProduction ? 50000 : 25000,
+    transports: isProduction ? ['polling'] : ['polling', 'websocket'], // Только polling для Vercel
+    upgrade: !isProduction, // Отключаем upgrade для Vercel
+    rememberUpgrade: !isProduction,
+    connectTimeout: isProduction ? 60000 : 45000,
+    serveClient: false,
+    // Специальные настройки для Vercel
+    ...(isProduction && {
+      adapter: undefined,
+      allowEIO3: true,
+      transports: ['polling'],
+      upgrade: false,
+      rememberUpgrade: false
+    })
   })
 
   res.socket.server.io = io

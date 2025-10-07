@@ -14,10 +14,15 @@ export default function ConnectionDebugger({ isVisible = false }: ConnectionDebu
   useEffect(() => {
     if (!isVisible) return
 
+    const isProduction = process.env.NODE_ENV === 'production'
+    
     const debugSocket = io({
       path: '/api/socketio',
-      transports: ['polling', 'websocket'],
-      withCredentials: true
+      transports: isProduction ? ['polling'] : ['polling', 'websocket'],
+      withCredentials: true,
+      upgrade: !isProduction,
+      rememberUpgrade: !isProduction,
+      timeout: isProduction ? 60000 : 45000
     })
 
     setSocket(debugSocket)
