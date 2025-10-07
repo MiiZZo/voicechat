@@ -34,9 +34,7 @@ export const SocketHandler = (req: any, res: NextApiResponseServerIO) => {
     cors: {
       origin: process.env.NODE_ENV === 'production' 
         ? [
-            process.env.CLIENT_URL || 'https://your-domain.com',
-            'https://your-domain.vercel.app',
-            'https://your-domain.netlify.app'
+            process.env.CLIENT_URL || 'https://voicechat-t2ph-dcwqm30gu-miizzos-projects.vercel.app/'
           ]
         : [
             "http://localhost:3000",
