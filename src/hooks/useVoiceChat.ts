@@ -74,7 +74,10 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
         forceNew: true,
         timeout: 20000,
         reconnection: false, // Disable auto-reconnection to prevent loops
-        reconnectionAttempts: 0
+        reconnectionAttempts: 0,
+        upgrade: true,
+        rememberUpgrade: true,
+        withCredentials: true
       }) as ExtendedSocket
       
       socketRef.current = socket

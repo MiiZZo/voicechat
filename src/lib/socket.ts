@@ -32,14 +32,27 @@ export const SocketHandler = (req: any, res: NextApiResponseServerIO) => {
     path: '/api/socketio',
     addTrailingSlash: false,
     cors: {
-      origin: "*",
+      origin: process.env.NODE_ENV === 'production' 
+        ? [
+            process.env.CLIENT_URL || 'https://your-domain.com',
+            'https://your-domain.vercel.app',
+            'https://your-domain.netlify.app'
+          ]
+        : [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001"
+          ],
       methods: ["GET", "POST"],
-      credentials: true
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Authorization"]
     },
     allowEIO3: true,
     pingTimeout: 60000,
     pingInterval: 25000,
-    transports: ['websocket', 'polling']
+    transports: ['polling', 'websocket'], // Polling first for better compatibility
+    upgrade: true,
+    rememberUpgrade: true
   })
 
   res.socket.server.io = io

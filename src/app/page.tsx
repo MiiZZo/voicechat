@@ -4,6 +4,7 @@ import { useState } from 'react'
 import VoiceChat from '@/components/VoiceChat'
 import RoomSelector from '@/components/RoomSelector'
 import SimpleConnectionTest from '@/components/SimpleConnectionTest'
+import ConnectionDebugger from '@/components/ConnectionDebugger'
 
 export default function Home() {
   const [currentRoom, setCurrentRoom] = useState<string | null>(null)
@@ -22,6 +23,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-oklch(14.5% 0 0) flex items-center justify-center p-4">
       <SimpleConnectionTest />
+      <ConnectionDebugger isVisible={process.env.NODE_ENV === 'development'} />
       <div className="minimal-card p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold text-white mb-2">

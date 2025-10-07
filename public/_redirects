@@ -1,0 +1,2 @@
+# Netlify redirects for Socket.io
+/api/socketio/* /api/socketio 200
