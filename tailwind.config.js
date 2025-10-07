@@ -8,6 +8,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        bg: 'var(--color-oklch)',
         primary: {
           50: '#f0f9ff',
           100: '#e0f2fe',

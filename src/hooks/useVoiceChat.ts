@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import SimplePeer from 'simple-peer'
+import { useAudioLevel } from './useAudioLevel'
 
 // Extended Socket interface for client side
 interface ExtendedSocket extends Socket {
@@ -26,6 +27,8 @@ interface PeerConnection {
   audioElement?: HTMLAudioElement
   volume: number
   isMuted: boolean
+  isSpeaking?: boolean
+  audioLevel?: number
 }
 
 export function useVoiceChat(roomId: string, username: string, options: VoiceChatOptions) {
@@ -39,6 +42,16 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
   const isMutedRef = useRef(false)
   const isDeafenedRef = useRef(false)
   const isConnectingRef = useRef(false)
+  
+  // Отслеживание активности голоса
+  const { 
+    audioLevel: localAudioLevel, 
+    isSpeaking: localIsSpeaking,
+    threshold: localThreshold,
+    updateThreshold: updateLocalThreshold
+  } = useAudioLevel(localStreamRef.current, {
+    smoothingFactor: 0.8
+  })
 
   const connect = useCallback(async () => {
     try {
@@ -67,24 +80,20 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
       }
 
              // Connect to socket server
-             const isProduction = process.env.NODE_ENV === 'production'
-             
              const socket = io({
                path: '/api/socketio',
-               transports: isProduction ? ['polling'] : ['polling', 'websocket'],
+               transports: ['polling', 'websocket'], // Railway поддерживает WebSocket
                autoConnect: true,
                forceNew: true,
-               timeout: isProduction ? 60000 : 45000,
+               timeout: 45000,
                reconnection: false, // Disable auto-reconnection to prevent loops
                reconnectionAttempts: 0,
-               upgrade: !isProduction, // Отключаем upgrade для продакшена
-               rememberUpgrade: !isProduction,
+               upgrade: true,
+               rememberUpgrade: true,
                withCredentials: true,
-               // Добавляем настройки для Vercel
                closeOnBeforeunload: false,
-               // Увеличиваем интервалы для стабильности
-               pingTimeout: isProduction ? 120000 : 60000,
-               pingInterval: isProduction ? 50000 : 25000
+               pingTimeout: 60000,
+               pingInterval: 25000
              }) as ExtendedSocket
       
       socketRef.current = socket
@@ -134,42 +143,78 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
             })
           })
 
-          peer.on('stream', (stream) => {
-            console.log('Received stream from:', data.username)
-            // Handle incoming audio stream
-            const audio = new Audio()
-            audio.srcObject = stream
-            audio.autoplay = true
-            audio.volume = isDeafenedRef.current ? 0 : 1
-            
-            // Store audio element for volume control
-            const existingPeer = peersRef.current.get(data.userId)
-            if (existingPeer) {
-              existingPeer.audioElement = audio
-              existingPeer.volume = 1
-              existingPeer.isMuted = false
-            } else {
-              peersRef.current.set(data.userId, {
-                peer,
-                username: data.username,
-                audioElement: audio,
-                volume: 1,
-                isMuted: false
-              })
-            }
-          })
+                 peer.on('stream', (stream) => {
+                   console.log('Received stream from:', data.username)
+                   // Handle incoming audio stream
+                   const audio = new Audio()
+                   audio.srcObject = stream
+                   audio.autoplay = true
+                   audio.volume = isDeafenedRef.current ? 0 : 1
+                   
+                   // Создаем AudioContext для анализа уровня звука
+                   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+                   const source = audioContext.createMediaStreamSource(stream)
+                   const analyser = audioContext.createAnalyser()
+                   analyser.fftSize = 256
+                   analyser.smoothingTimeConstant = 0.8
+                   source.connect(analyser)
+                   
+                   const bufferLength = analyser.frequencyBinCount
+                   const dataArray = new Uint8Array(bufferLength)
+                   
+                   // Функция для анализа уровня звука
+                   const analyzeAudio = () => {
+                     analyser.getByteFrequencyData(dataArray)
+                     let sum = 0
+                     for (let i = 0; i < dataArray.length; i++) {
+                       sum += dataArray[i]
+                     }
+                     const average = sum / dataArray.length
+                     const normalizedLevel = average / 255
+                     
+                     // Обновляем уровень звука в peer connection
+                     const peerConnection = peersRef.current.get(data.userId)
+                     if (peerConnection) {
+                       peerConnection.audioLevel = normalizedLevel
+                       peerConnection.isSpeaking = normalizedLevel > localThreshold
+                     }
+                     
+                     requestAnimationFrame(analyzeAudio)
+                   }
+                   analyzeAudio()
+                   
+                   // Store audio element for volume control
+                   const existingPeer = peersRef.current.get(data.userId)
+                   if (existingPeer) {
+                     existingPeer.audioElement = audio
+                     existingPeer.volume = 1
+                     existingPeer.isMuted = false
+                   } else {
+                     peersRef.current.set(data.userId, {
+                       peer,
+                       username: data.username,
+                       audioElement: audio,
+                       volume: 1,
+                       isMuted: false,
+                       isSpeaking: false,
+                       audioLevel: 0
+                     })
+                   }
+                 })
 
           peer.on('error', (err) => {
             console.error('Peer connection error:', err)
           })
 
-          // Store peer connection
-          peersRef.current.set(data.userId, {
-            peer,
-            username: data.username,
-            volume: 1,
-            isMuted: false
-          })
+                 // Store peer connection
+                 peersRef.current.set(data.userId, {
+                   peer,
+                   username: data.username,
+                   volume: 1,
+                   isMuted: false,
+                   isSpeaking: false,
+                   audioLevel: 0
+                 })
 
           // Update participants list
           updateParticipantsList()
@@ -229,33 +274,67 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
             })
           })
 
-          peer.on('stream', (stream) => {
-            console.log('Received stream from existing user:', data.fromUserId)
-            const audio = new Audio()
-            audio.srcObject = stream
-            audio.autoplay = true
-            audio.volume = isDeafenedRef.current ? 0 : 1
-            
-            // Update existing peer connection with audio element
-            const existingPeer = peersRef.current.get(data.fromUserId)
-            if (existingPeer) {
-              existingPeer.audioElement = audio
-              existingPeer.volume = 1
-              existingPeer.isMuted = false
-            }
-          })
+                 peer.on('stream', (stream) => {
+                   console.log('Received stream from existing user:', data.fromUserId)
+                   const audio = new Audio()
+                   audio.srcObject = stream
+                   audio.autoplay = true
+                   audio.volume = isDeafenedRef.current ? 0 : 1
+                   
+                   // Создаем AudioContext для анализа уровня звука
+                   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+                   const source = audioContext.createMediaStreamSource(stream)
+                   const analyser = audioContext.createAnalyser()
+                   analyser.fftSize = 256
+                   analyser.smoothingTimeConstant = 0.8
+                   source.connect(analyser)
+                   
+                   const bufferLength = analyser.frequencyBinCount
+                   const dataArray = new Uint8Array(bufferLength)
+                   
+                   // Функция для анализа уровня звука
+                   const analyzeAudio = () => {
+                     analyser.getByteFrequencyData(dataArray)
+                     let sum = 0
+                     for (let i = 0; i < dataArray.length; i++) {
+                       sum += dataArray[i]
+                     }
+                     const average = sum / dataArray.length
+                     const normalizedLevel = average / 255
+                     
+                     // Обновляем уровень звука в peer connection
+                     const peerConnection = peersRef.current.get(data.fromUserId)
+                     if (peerConnection) {
+                       peerConnection.audioLevel = normalizedLevel
+                       peerConnection.isSpeaking = normalizedLevel > localThreshold
+                     }
+                     
+                     requestAnimationFrame(analyzeAudio)
+                   }
+                   analyzeAudio()
+                   
+                   // Update existing peer connection with audio element
+                   const existingPeer = peersRef.current.get(data.fromUserId)
+                   if (existingPeer) {
+                     existingPeer.audioElement = audio
+                     existingPeer.volume = 1
+                     existingPeer.isMuted = false
+                   }
+                 })
 
           peer.on('error', (err) => {
             console.error('Peer connection error:', err)
           })
 
-          // Store peer connection first
-          peersRef.current.set(data.fromUserId, {
-            peer,
-            username: 'Unknown', // Will be updated when we get the username
-            volume: 1,
-            isMuted: false
-          })
+                 // Store peer connection first
+                 peersRef.current.set(data.fromUserId, {
+                   peer,
+                   username: 'Unknown', // Will be updated when we get the username
+                   volume: 1,
+                   isMuted: false,
+                   isSpeaking: false,
+                   audioLevel: 0
+                 })
 
           // Then signal
           try {
@@ -409,6 +488,39 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
     return peerConnection ? peerConnection.isMuted : false
   }, [])
 
+  const isParticipantSpeaking = useCallback((participantId: string) => {
+    if (!participantId) return false
+    
+    const peerConnection = peersRef.current.get(participantId)
+    return peerConnection ? peerConnection.isSpeaking || false : false
+  }, [])
+
+  const getParticipantAudioLevel = useCallback((participantId: string) => {
+    if (!participantId) return 0
+    
+    const peerConnection = peersRef.current.get(participantId)
+    return peerConnection ? peerConnection.audioLevel || 0 : 0
+  }, [])
+
+  const getLocalAudioLevel = useCallback(() => {
+    return localAudioLevel
+  }, [localAudioLevel])
+
+  const isLocalSpeaking = useCallback(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Local speaking status: ${localIsSpeaking}, level: ${localAudioLevel}, threshold: ${localThreshold}`)
+    }
+    return localIsSpeaking
+  }, [localIsSpeaking, localAudioLevel, localThreshold])
+
+  const getLocalThreshold = useCallback(() => {
+    return localThreshold
+  }, [localThreshold])
+
+  const handleLocalThresholdUpdate = useCallback((newThreshold: number) => {
+    updateLocalThreshold(newThreshold)
+  }, [updateLocalThreshold])
+
   // Remove the useEffect that was causing the loop
   // The component will handle connection/disconnection lifecycle
 
@@ -423,6 +535,12 @@ export function useVoiceChat(roomId: string, username: string, options: VoiceCha
     setParticipantVolume,
     toggleParticipantMute,
     getParticipantVolume,
-    isParticipantMuted
+    isParticipantMuted,
+    isParticipantSpeaking,
+    getParticipantAudioLevel,
+    getLocalAudioLevel,
+    isLocalSpeaking,
+    getLocalThreshold,
+    updateLocalThreshold: handleLocalThresholdUpdate
   }
 }

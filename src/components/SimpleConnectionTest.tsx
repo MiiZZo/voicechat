@@ -106,7 +106,7 @@ export default function SimpleConnectionTest() {
 
   return (
     <div className="fixed top-4 right-4 minimal-card p-4 max-w-sm">
-      <h3 className="font-medium text-white mb-3 text-sm">Connection Test</h3>
+      <h3 className="font-medium text-white mb-3 text-sm">Тест подключения</h3>
       
       <div className="space-y-2">
         <div className={`px-3 py-2 rounded-lg text-sm font-medium ${getStatusColor(apiStatus)}`}>

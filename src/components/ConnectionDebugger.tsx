@@ -14,15 +14,13 @@ export default function ConnectionDebugger({ isVisible = false }: ConnectionDebu
   useEffect(() => {
     if (!isVisible) return
 
-    const isProduction = process.env.NODE_ENV === 'production'
-    
     const debugSocket = io({
       path: '/api/socketio',
-      transports: isProduction ? ['polling'] : ['polling', 'websocket'],
+      transports: ['polling', 'websocket'],
       withCredentials: true,
-      upgrade: !isProduction,
-      rememberUpgrade: !isProduction,
-      timeout: isProduction ? 60000 : 45000
+      upgrade: true,
+      rememberUpgrade: true,
+      timeout: 45000
     })
 
     setSocket(debugSocket)
@@ -53,7 +51,7 @@ export default function ConnectionDebugger({ isVisible = false }: ConnectionDebu
       setDebugInfo(prev => ({
         ...prev,
         error: error.message,
-        errorType: error.type
+        errorType: (error as any).type || 'unknown'
       }))
     })
 
@@ -139,7 +137,7 @@ export default function ConnectionDebugger({ isVisible = false }: ConnectionDebu
               setTimeout(() => socket.connect(), 1000)
             }
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs"
+          className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs"
         >
           Reconnect
         </button>

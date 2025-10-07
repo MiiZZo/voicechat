@@ -38,9 +38,10 @@ export const SocketHandler = (req: any, res: NextApiResponseServerIO) => {
     cors: {
       origin: isProduction 
         ? [
-            process.env.CLIENT_URL || 'https://voicechat-t2ph-dcwqm30gu-miizzos-projects.vercel.app',
-            'https://voicechat-t2ph-git-master-miizzos-projects.vercel.app',
-            'https://*.vercel.app'
+            process.env.CLIENT_URL || 'https://your-app-name.railway.app',
+            'https://*.railway.app',
+            'https://*.vercel.app',
+            'https://*.netlify.app'
           ]
         : [
             "http://localhost:3000",
@@ -52,21 +53,13 @@ export const SocketHandler = (req: any, res: NextApiResponseServerIO) => {
       allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
     },
     allowEIO3: true,
-    pingTimeout: isProduction ? 120000 : 60000, // Увеличиваем для Vercel
-    pingInterval: isProduction ? 50000 : 25000,
-    transports: isProduction ? ['polling'] : ['polling', 'websocket'], // Только polling для Vercel
-    upgrade: !isProduction, // Отключаем upgrade для Vercel
-    rememberUpgrade: !isProduction,
-    connectTimeout: isProduction ? 60000 : 45000,
-    serveClient: false,
-    // Специальные настройки для Vercel
-    ...(isProduction && {
-      adapter: undefined,
-      allowEIO3: true,
-      transports: ['polling'],
-      upgrade: false,
-      rememberUpgrade: false
-    })
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    transports: ['polling', 'websocket'], // Railway поддерживает WebSocket
+    upgrade: true,
+    rememberUpgrade: true,
+    connectTimeout: 45000,
+    serveClient: false
   })
 
   res.socket.server.io = io
